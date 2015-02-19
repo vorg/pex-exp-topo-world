@@ -42,6 +42,14 @@ var DPI = 2;
 var WorldRadius = 0.75;
 var DegToRad = 1/180.0 * Math.PI;
 
+var layers = {
+  axis: false,
+  latLng: true,
+  countries: true,
+  states: false,
+  cities: true
+}
+
 function evalPos(r, lat, lng) {
   var pos = new Vec3();
   pos.x = r * Math.sin((90 - lat) * DegToRad) * Math.sin(lng * DegToRad);
@@ -59,18 +67,31 @@ Window.create({
     fullscreen: Platform.isBrowser ? true : false
   },
   init: function() {
-    this.worldMeshInside = new Mesh(new Sphere(WorldRadius-0.01, 36, 18), new SolidColor({ color: Color.Black }), { triangles: true });
-    this.worldMesh = new Mesh(new Sphere(WorldRadius, 36, 18), new SolidColor({ color: Color.DarkGrey }), { lines: true });
-    this.axisHelper = new AxisHelper();
+    var worldMeshInside = new Mesh(new Sphere(WorldRadius-0.01, 36, 18), new SolidColor({ color: Color.Black }), { triangles: true });
 
     this.debugCube = new Mesh(new Cube(0.01), new SolidColor({ color: Color.Red }));
     this.debugCube.position = evalPos(WorldRadius, 24, 54);
 
-    this.camera = new Camera(60, this.width / this.height, 0.1, 2);
+    this.camera = new Camera(60, this.width / this.height, 0.1, 10);
     this.arcball = new Arcball(this, this.camera);
 
-    //countries
+    this.scene = [ worldMeshInside ];
 
+    if (layers.axis) {
+      var axisHelper = new AxisHelper();
+      this.scene.push(axisHelper);
+    }
+
+    if (layers.latLng) {
+      var worldMesh = new Mesh(new Sphere(WorldRadius, 36, 18), new SolidColor({ color: Color.DarkGrey }), { lines: true });
+      this.scene.push(worldMesh);
+    }
+
+    if (layers.countries) this.loadCountries();
+    if (layers.states) this.loadStates();
+    if (layers.cities) this.loadCities();
+  },
+  loadCountries: function() {
     var world = loadJSON('data/world-50m.json');
     var countryNames = loadTSV('data/world-country-names.tsv'); // [ { id, name },... ]
     var countries = topojson.feature(world, world.objects.countries).features;
@@ -106,11 +127,11 @@ Window.create({
       })
     });
 
-    this.countriesMesh = new Mesh(countriesLineBuilder, new SolidColor({ color: Color.Yellow }), { lines: true });
+    var countriesMesh = new Mesh(countriesLineBuilder, new SolidColor({ color: Color.Yellow }), { lines: true });
+    this.scene.push(countriesMesh);
     console.log('Countries mesh vertices', countriesLineBuilder.vertices.length);
-
-    //states
-
+  },
+  loadStates: function() {
     var statesData = loadJSON('data/states-provinces.json');
     var states = topojson.feature(statesData, statesData.objects['states_provinces.geo']).features;
 
@@ -136,12 +157,11 @@ Window.create({
       })
     });
 
-    this.statesMesh = new Mesh(statesLineBuilder, new SolidColor({ color: Color.Cyan }), { lines: true });
-
+    var statesMesh = new Mesh(statesLineBuilder, new SolidColor({ color: Color.Cyan }), { lines: true });
+    this.scene.push(statesMesh);
     console.log('States mesh vertices', statesLineBuilder.vertices.length);
-
-    //cities
-
+  },
+  loadCities: function() {
     var citiesJSON = loadJSON('data/cities.json');
     var cities = topojson.feature(citiesJSON, citiesJSON.objects.cities).features;
     var cityPoints = cities.map(function(city) {
@@ -149,17 +169,16 @@ Window.create({
       var lat = city.geometry.coordinates[1];
       return evalPos(WorldRadius, lat, lng);
     })
-    this.citiesMesh = new Mesh(new Geometry({ vertices: cityPoints }), new SolidColor({ color: Color.White, pointSize: 2 }), { points: true });
+    var citiesMesh = new Mesh(new Geometry({ vertices: cityPoints }), new SolidColor({ color: Color.White, pointSize: 2 }), { points: true });
+    this.scene.push(citiesMesh);
   },
   draw: function() {
     this.gl.depthFunc(this.gl.LEQUAL);
     glu.clearColorAndDepth(Color.Black);
     glu.enableDepthReadAndWrite(true);
-    this.worldMeshInside.draw(this.camera);
-    this.worldMesh.draw(this.camera);
-    this.statesMesh.draw(this.camera);
-    this.countriesMesh.draw(this.camera);
-    this.axisHelper.draw(this.camera);
-    this.citiesMesh.draw(this.camera);
+
+    this.scene.forEach(function(m) {
+      m.draw(this.camera);
+    }.bind(this));
   }
 });
