@@ -15,8 +15,8 @@ var Sphere        = require('pex-gen').Sphere;
 var Cube          = require('pex-gen').Cube;
 var LineBuilder   = require('pex-gen').LineBuilder;
 var Vec3          = require('pex-geom').Vec3;
+var Geometry      = require('pex-geom').Geometry;
 var AxisHelper    = require('pex-helpers').AxisHelper;
-
 
 function loadJSON(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -92,6 +92,14 @@ Window.create({
 
     this.countriesMesh = new Mesh(lineBuilder, new SolidColor({ color: Color.Yellow }), { lines: true });
     console.log('Countries mesh vertices', lineBuilder.vertices.length);
+
+    var cities = loadJSON('data/cities.json');
+    var cityPoints = cities.map(function(city) {
+      var lng = city.coordinates[0];
+      var lat = city.coordinates[1];
+      return evalPos(WorldRadius, lat, lng);
+    })
+    this.citiesMesh = new Mesh(new Geometry({ vertices: cityPoints }), new SolidColor({ color: Color.White, pointSize: 2 }), { points: true });
   },
   loadData: function() {
     var world = loadJSON('data/world-50m.json');
@@ -114,6 +122,7 @@ Window.create({
     this.worldMesh.draw(this.camera);
     this.countriesMesh.draw(this.camera);
     this.axisHelper.draw(this.camera);
-    this.debugCube.draw(this.camera);
+    //this.debugCube.draw(this.camera);
+    this.citiesMesh.draw(this.camera);
   }
 });
