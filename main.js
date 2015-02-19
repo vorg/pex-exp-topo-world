@@ -38,7 +38,8 @@ function loadTSV(file, types) {
   return results;
 }
 
-var WorldRadius = 0.5;
+var DPI = 2;
+var WorldRadius = 0.75;
 var DegToRad = 1/180.0 * Math.PI;
 
 function evalPos(r, lat, lng) {
@@ -51,9 +52,10 @@ function evalPos(r, lat, lng) {
 
 Window.create({
   settings: {
-    width: 1280,
-    height: 720,
+    width: 1280 * DPI,
+    height: 720 * DPI,
     type: '3d',
+    highdpi: DPI,
     fullscreen: Platform.isBrowser ? true : false
   },
   init: function() {
@@ -64,11 +66,25 @@ Window.create({
     this.debugCube = new Mesh(new Cube(0.01), new SolidColor({ color: Color.Red }));
     this.debugCube.position = evalPos(WorldRadius, 24, 54);
 
-    this.camera = new Camera(60, this.width / this.height);
+    this.camera = new Camera(60, this.width / this.height, 0.1, 2);
     this.arcball = new Arcball(this, this.camera);
 
-    var countries = this.loadData();
-    var lineBuilder = new LineBuilder();
+    //countries
+
+    var world = loadJSON('data/world-50m.json');
+    var countryNames = loadTSV('data/world-country-names.tsv'); // [ { id, name },... ]
+    var countries = topojson.feature(world, world.objects.countries).features;
+
+    countries = countries
+    .filter(function(country) {
+      return country.id != -99; //what is this?
+    })
+    .map(function(country) {
+      var countryName = R.prop('name', R.find(R.where({id: country.id}), countryNames));
+      return R.assoc('name', countryName, country)
+    });
+
+    var countriesLineBuilder = new LineBuilder();
     countries.forEach(function(country) {
       var polygons = country.geometry.coordinates;
       var type = country.geometry.type;
@@ -83,15 +99,48 @@ Window.create({
           var lat = p[1];
           var point = evalPos(WorldRadius, lat, lng);
           if (prevPoint) {
-            lineBuilder.addLine(prevPoint, point);
+            countriesLineBuilder.addLine(prevPoint, point);
           }
           prevPoint = point;
         }
       })
     });
 
-    this.countriesMesh = new Mesh(lineBuilder, new SolidColor({ color: Color.Yellow }), { lines: true });
-    console.log('Countries mesh vertices', lineBuilder.vertices.length);
+    this.countriesMesh = new Mesh(countriesLineBuilder, new SolidColor({ color: Color.Yellow }), { lines: true });
+    console.log('Countries mesh vertices', countriesLineBuilder.vertices.length);
+
+    //states
+
+    var statesData = loadJSON('data/states-provinces.json');
+    var states = topojson.feature(statesData, statesData.objects['states_provinces.geo']).features;
+
+    var statesLineBuilder = new LineBuilder();
+    states.forEach(function(state) {
+      var polygons = state.geometry.coordinates;
+      var type = state.geometry.type;
+      if (type == 'MultiPolygon') {
+        polygons = R.unnest(polygons);
+      }
+      polygons.forEach(function(poly) {
+        var prevPoint = null;
+        for(var i=0; i<=poly.length; i++) {
+          var p = poly[i % poly.length]; //[ng, lat]
+          var lng = p[0];
+          var lat = p[1];
+          var point = evalPos(WorldRadius, lat, lng);
+          if (prevPoint) {
+            statesLineBuilder.addLine(prevPoint, point);
+          }
+          prevPoint = point;
+        }
+      })
+    });
+
+    this.statesMesh = new Mesh(statesLineBuilder, new SolidColor({ color: Color.Cyan }), { lines: true });
+
+    console.log('States mesh vertices', statesLineBuilder.vertices.length);
+
+    //cities
 
     var citiesJSON = loadJSON('data/cities.json');
     var cities = topojson.feature(citiesJSON, citiesJSON.objects.cities).features;
@@ -102,28 +151,15 @@ Window.create({
     })
     this.citiesMesh = new Mesh(new Geometry({ vertices: cityPoints }), new SolidColor({ color: Color.White, pointSize: 2 }), { points: true });
   },
-  loadData: function() {
-    var world = loadJSON('data/world-50m.json');
-    var countryNames = loadTSV('data/world-country-names.tsv'); // [ { id, name },... ]
-    var countries = topojson.feature(world, world.objects.countries).features;
-
-    return countries
-    .filter(function(country) {
-      return country.id != -99; //what is this?
-    })
-    .map(function(country) {
-      var countryName = R.prop('name', R.find(R.where({id: country.id}), countryNames));
-      return R.assoc('name', countryName, country)
-    });
-  },
   draw: function() {
+    this.gl.depthFunc(this.gl.LEQUAL);
     glu.clearColorAndDepth(Color.Black);
     glu.enableDepthReadAndWrite(true);
     this.worldMeshInside.draw(this.camera);
     this.worldMesh.draw(this.camera);
+    this.statesMesh.draw(this.camera);
     this.countriesMesh.draw(this.camera);
     this.axisHelper.draw(this.camera);
-    //this.debugCube.draw(this.camera);
     this.citiesMesh.draw(this.camera);
   }
 });
