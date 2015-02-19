@@ -93,10 +93,11 @@ Window.create({
     this.countriesMesh = new Mesh(lineBuilder, new SolidColor({ color: Color.Yellow }), { lines: true });
     console.log('Countries mesh vertices', lineBuilder.vertices.length);
 
-    var cities = loadJSON('data/cities.json');
+    var citiesJSON = loadJSON('data/cities.json');
+    var cities = topojson.feature(citiesJSON, citiesJSON.objects.cities).features;
     var cityPoints = cities.map(function(city) {
-      var lng = city.coordinates[0];
-      var lat = city.coordinates[1];
+      var lng = city.geometry.coordinates[0];
+      var lat = city.geometry.coordinates[1];
       return evalPos(WorldRadius, lat, lng);
     })
     this.citiesMesh = new Mesh(new Geometry({ vertices: cityPoints }), new SolidColor({ color: Color.White, pointSize: 2 }), { points: true });

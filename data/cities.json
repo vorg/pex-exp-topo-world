@@ -1,7 +1,7 @@
 {
     "type": "Topology",
     "objects": {
-        "ne_50m_populated_places_simple.geo": {
+        "cities": {
             "type": "GeometryCollection",
             "geometries": [{
                 "type": "Point",
