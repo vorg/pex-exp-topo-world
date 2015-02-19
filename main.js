@@ -9,8 +9,10 @@ var Mesh          = require('pex-glu').Mesh;
 var Camera        = require('pex-glu').PerspectiveCamera;
 var Arcball       = require('pex-glu').Arcball;
 var SolidColor    = require('pex-materials').SolidColor;
+var ShowTexCoords = require('pex-materials').ShowTexCoords;
 var Color         = require('pex-color').Color;
 var Sphere        = require('pex-gen').Sphere;
+var Cube          = require('pex-gen').Cube;
 var LineBuilder   = require('pex-gen').LineBuilder;
 var Vec3          = require('pex-geom').Vec3;
 var AxisHelper    = require('pex-helpers').AxisHelper;
@@ -39,11 +41,11 @@ function loadTSV(file, types) {
 var WorldRadius = 0.5;
 var DegToRad = 1/180.0 * Math.PI;
 
-function evalPos(r, theta, phi) {
+function evalPos(r, lat, lng) {
   var pos = new Vec3();
-  pos.x = r * Math.sin(theta * DegToRad) * Math.sin(phi * DegToRad);
-  pos.y = r * Math.cos(theta * DegToRad);
-  pos.z = r * Math.sin(theta * DegToRad) * Math.cos(phi * DegToRad);
+  pos.x = r * Math.sin((90 - lat) * DegToRad) * Math.sin(lng * DegToRad);
+  pos.y = r * Math.cos((90 - lat) * DegToRad);
+  pos.z = r * Math.sin((90 - lat) * DegToRad) * Math.cos(lng * DegToRad);
   return pos;
 }
 
@@ -59,6 +61,9 @@ Window.create({
     this.worldMesh = new Mesh(new Sphere(WorldRadius, 36, 18), new SolidColor({ color: Color.DarkGrey }), { lines: true });
     this.axisHelper = new AxisHelper();
 
+    this.debugCube = new Mesh(new Cube(0.01), new SolidColor({ color: Color.Red }));
+    this.debugCube.position = evalPos(WorldRadius, 24, 54);
+
     this.camera = new Camera(60, this.width / this.height);
     this.arcball = new Arcball(this, this.camera);
 
@@ -73,8 +78,10 @@ Window.create({
       polygons.forEach(function(poly) {
         var prevPoint = null;
         for(var i=0; i<=poly.length; i++) {
-          var p = poly[i % poly.length];
-          var point = evalPos(WorldRadius, p[1] - 90, p[0]);
+          var p = poly[i % poly.length]; //[ng, lat]
+          var lng = p[0];
+          var lat = p[1];
+          var point = evalPos(WorldRadius, lat, lng);
           if (prevPoint) {
             lineBuilder.addLine(prevPoint, point);
           }
@@ -107,5 +114,6 @@ Window.create({
     this.worldMesh.draw(this.camera);
     this.countriesMesh.draw(this.camera);
     this.axisHelper.draw(this.camera);
+    this.debugCube.draw(this.camera);
   }
 });

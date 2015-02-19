@@ -13,6 +13,7 @@
     "pex-geom": "^0.11.1",
     "pex-glu": "^0.2.3",
     "pex-gui": "^0.4.0",
+    "pex-helpers": "^0.1.0",
     "pex-materials": "^0.1.1",
     "pex-random": "^0.2.1",
     "pex-sys": "^0.2.1",
