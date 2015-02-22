@@ -46,7 +46,7 @@ var layers = {
   axis: false,
   latLng: true,
   countries: true,
-  states: false,
+  states: true,
   cities: true
 }
 
