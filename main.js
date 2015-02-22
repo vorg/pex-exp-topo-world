@@ -17,25 +17,33 @@ var LineBuilder   = require('pex-gen').LineBuilder;
 var Vec3          = require('pex-geom').Vec3;
 var Geometry      = require('pex-geom').Geometry;
 var AxisHelper    = require('pex-helpers').AxisHelper;
+var IO            = require('pex-sys').IO;
 
-function loadJSON(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+function loadJSON(file, cb) {
+  return new Promise(function(resolve, reject) {
+    IO.loadTextFile(file, function(data) {
+      resolve(JSON.parse(data));
+    });
+  });
 }
 
 function loadTSV(file, types) {
-  var lines = fs.readFileSync(file, 'utf8').trim().split('\n');
-  var columns = lines.shift().split('\t');
-  var results = lines.map(function(line) {
-    var values = line.split('\t');
-    //automatically parse numbers
-    values = values.map(function(value) {
-      if (isNaN(Number(value))) return value;
-      else return Number(value);
-    })
-    return R.zipObj(columns, values);
-  });
-
-  return results;
+  return new Promise(function(resolve, reject) {
+    IO.loadTextFile(file, function(data) {
+      var lines = data.trim().split('\n');
+      var columns = lines.shift().split('\t');
+      var results = lines.map(function(line) {
+        var values = line.split('\t');
+        //automatically parse numbers
+        values = values.map(function(value) {
+          if (isNaN(Number(value))) return value;
+          else return Number(value);
+        })
+        return R.zipObj(columns, values);
+      });
+      resolve(results);
+    });
+  })
 }
 
 var DPI = 2;
@@ -64,7 +72,8 @@ Window.create({
     height: 720 * DPI,
     type: '3d',
     highdpi: DPI,
-    fullscreen: Platform.isBrowser ? true : false
+    fullscreen: Platform.isBrowser ? true : false,
+    borderless: false
   },
   init: function() {
     var worldMeshInside = new Mesh(new Sphere(WorldRadius-0.01, 36, 18), new SolidColor({ color: Color.Black }), { triangles: true });
@@ -92,8 +101,15 @@ Window.create({
     if (layers.cities) this.loadCities();
   },
   loadCountries: function() {
-    var world = loadJSON('data/world-50m.json');
-    var countryNames = loadTSV('data/world-country-names.tsv'); // [ { id, name },... ]
+    Promise.all([
+      loadJSON('data/world-50m.json'),
+      loadTSV('data/world-country-names.tsv')
+    ])
+    .then(function(data) {
+      this.buildCountries(data[0], data[1]);
+    }.bind(this))
+  },
+  buildCountries: function(world, countryNames) {
     var countries = topojson.feature(world, world.objects.countries).features;
 
     countries = countries
@@ -132,7 +148,9 @@ Window.create({
     console.log('Countries mesh vertices', countriesLineBuilder.vertices.length);
   },
   loadStates: function() {
-    var statesData = loadJSON('data/states-provinces.json');
+    loadJSON('data/states-provinces.json').then(this.buildStates.bind(this));
+  },
+  buildStates: function(statesData) {
     var states = topojson.feature(statesData, statesData.objects['states_provinces.geo']).features;
 
     var statesLineBuilder = new LineBuilder();
@@ -162,14 +180,16 @@ Window.create({
     console.log('States mesh vertices', statesLineBuilder.vertices.length);
   },
   loadCities: function() {
-    var citiesJSON = loadJSON('data/cities.json');
+    loadJSON('data/cities.json').then(this.buildCities.bind(this));
+  },
+  buildCities: function(citiesJSON) {
     var cities = topojson.feature(citiesJSON, citiesJSON.objects.cities).features;
     var cityPoints = cities.map(function(city) {
       var lng = city.geometry.coordinates[0];
       var lat = city.geometry.coordinates[1];
       return evalPos(WorldRadius, lat, lng);
     })
-    var citiesMesh = new Mesh(new Geometry({ vertices: cityPoints }), new SolidColor({ color: Color.White, pointSize: 2 }), { points: true });
+    var citiesMesh = new Mesh(new Geometry({ vertices: cityPoints }), new SolidColor({ color: Color.White, pointSize: 5 }), { points: true });
     this.scene.push(citiesMesh);
   },
   draw: function() {
